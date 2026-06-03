@@ -1,0 +1,37 @@
+name: Data Quality Pipeline Guard
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  validate-data:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/role-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run Data Quality Checks (Reference Data)
+      run: |
+        # Validar dados de referência que devem passar
+        python data_quality_pipeline.py data/base_referencia.csv
+
+    - name: Run Data Quality Checks (New Data)
+      run: |
+        # Validar novos dados de produção (este passo falhará no pipeline indicando erro de dados)
+        # Usamos 'continue-on-error: true' ou apenas deixamos falhar para demonstrar o bloqueio de CI/CD
+        python data_quality_pipeline.py data/novos_dados.csv
+        
