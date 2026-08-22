@@ -15,23 +15,25 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Set up Python
-      uses: actions/role-python@v4
+      uses: actions/setup-python@v4
       with:
-        python-version: '3.10'
+        python-version: '3.11'
 
     - name: Install Dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+        pip install pytest
 
-    - name: Run Data Quality Checks (Reference Data)
+    - name: Run Unit Tests
       run: |
-        # Validar dados de referência que devem passar
-        python data_quality_pipeline.py data/base_referencia.csv
+        python -m pytest
 
-    - name: Run Data Quality Checks (New Data)
+    - name: Run Data Quality Check on Reference Data
       run: |
-        # Validar novos dados de produção (este passo falhará no pipeline indicando erro de dados)
-        # Usamos 'continue-on-error: true' ou apenas deixamos falhar para demonstrar o bloqueio de CI/CD
-        python data_quality_pipeline.py data/novos_dados.csv
-        
+        python data_quality_pipeline.py data/base_referencia.csv --ref data/base_referencia.csv
+
+    - name: Run Data Quality Check on Production New Data
+      continue-on-error: true
+      run: |
+        python data_quality_pipeline.py data/novos_dados.csv --ref data/base_referencia.csv
