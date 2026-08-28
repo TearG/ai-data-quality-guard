@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "ai-data-quality-guard"
+version = "0.1.0"
+description = "Migrated to Poetry"
+authors = ["Vanes <vanes@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+"pandas" = "*"
+"numpy" = "*"
+"scipy" = "*"
+"pytest" = "*"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
