@@ -41,7 +41,8 @@ def validate_data_quality(df):
         failures.append(f"Idade possui {null_idades} valores nulos.")
     invalid_idades = df[(df["Idade"] < 0) | (df["Idade"] > 120)]
     if len(invalid_idades) > 0:
-        failures.append(f"Idade fora do limite [0, 120]: {len(invalid_idades)} registros. Valores: {invalid_idades['Idade'].tolist()}")
+        sample_idades = invalid_idades['Idade'].head(10).tolist()
+        failures.append(f"Idade fora do limite [0, 120]: {len(invalid_idades)} registros. Amostra: {sample_idades}")
 
     # 4. Validar GastoMensal (positivo e <= 1000)
     null_gastos = df["GastoMensal"].isnull().sum()
@@ -49,7 +50,8 @@ def validate_data_quality(df):
         failures.append(f"GastoMensal possui {null_gastos} valores nulos.")
     invalid_gastos = df[(df["GastoMensal"] < 0) | (df["GastoMensal"] > 1000)]
     if len(invalid_gastos) > 0:
-        failures.append(f"GastoMensal fora do limite [0, 1000]: {len(invalid_gastos)} registros. Valores: {invalid_gastos['GastoMensal'].tolist()}")
+        sample_gastos = invalid_gastos['GastoMensal'].head(10).tolist()
+        failures.append(f"GastoMensal fora do limite [0, 1000]: {len(invalid_gastos)} registros. Amostra: {sample_gastos}")
 
     # 5. Validar domínio de TipoContrato
     allowed_contratos = {"Mensal", "Anual", "Bienal"}
@@ -61,10 +63,30 @@ def validate_data_quality(df):
     return is_success, failures
 
 
+def calculate_psi(ref_series, new_series, bins=10):
+    """Calcula o Population Stability Index (PSI) entre a série de referência e a nova."""
+    ref_arr = np.asarray(ref_series.dropna(), dtype=float)
+    new_arr = np.asarray(new_series.dropna(), dtype=float)
+    if len(ref_arr) == 0 or len(new_arr) == 0:
+        return 0.0
+    quantiles = np.linspace(0, 100, bins + 1)
+    breakpoints = np.unique(np.percentile(ref_arr, quantiles))
+    if len(breakpoints) < 2:
+        return 0.0
+    breakpoints[0] = -np.inf
+    breakpoints[-1] = np.inf
+    ref_counts, _ = np.histogram(ref_arr, bins=breakpoints)
+    new_counts, _ = np.histogram(new_arr, bins=breakpoints)
+    ref_pct = np.clip(ref_counts / len(ref_arr), 1e-4, None)
+    new_pct = np.clip(new_counts / len(new_arr), 1e-4, None)
+    psi_val = np.sum((new_pct - ref_pct) * np.log(new_pct / ref_pct))
+    return round(float(psi_val), 4)
+
+
 def detect_data_drift(df_ref, df_new, alpha=0.05):
     """
     Calcula desvio estatístico (Data Drift) entre a base de referência e os novos dados
-    utilizando o teste de Kolmogorov-Smirnov (KS-Test) para numéricas.
+    utilizando o teste de Kolmogorov-Smirnov (KS-Test) e o Population Stability Index (PSI).
     
     Retorna:
         dict: Resultado dos testes por coluna
@@ -79,10 +101,12 @@ def detect_data_drift(df_ref, df_new, alpha=0.05):
             
             if len(ref_clean) > 0 and len(new_clean) > 0:
                 ks_stat, p_value = ks_2samp(ref_clean, new_clean)
-                has_drift = p_value < alpha
+                psi_val = calculate_psi(ref_clean, new_clean)
+                has_drift = bool((p_value < alpha) or (psi_val >= 0.25))
                 drift_report[col] = {
                     "ks_stat": round(float(ks_stat), 4),
                     "p_value": round(float(p_value), 4),
+                    "psi": psi_val,
                     "drift_detected": has_drift
                 }
                 
